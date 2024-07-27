@@ -1,3 +1,4 @@
 .venv/*
 .idea/*
 Otus_Concurrency.code-workspace
+./data/appsinstalled/*.tsv.gz

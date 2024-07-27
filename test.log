@@ -1,0 +1,14 @@
+[2024.07.25 15:59:01] I Memc loader started with options: {'test': False, 'log': 'test.log', 'dry': False, 'pattern': '/data/appsinstalled/*.tsv.gz', 'idfa': '127.0.0.1:33013', 'gaid': '127.0.0.1:33014', 'adid': '127.0.0.1:33015', 'dvid': '127.0.0.1:33016'}
+[2024.07.27 15:09:58] I Memc loader started with options: {'test': False, 'log': 'test.log', 'dry': False, 'pattern': './data/appsinstalled/*.tsv.gz', 'idfa': '127.0.0.1:33013', 'gaid': '127.0.0.1:33014', 'adid': '127.0.0.1:33015', 'dvid': '127.0.0.1:33016'}
+[2024.07.27 15:09:58] I Processing ./data/appsinstalled\20170929000000.tsv.gz
+[2024.07.27 15:09:58] E Unexpected error: a bytes-like object is required, not 'str'
+Traceback (most recent call last):
+  File "C:\Users\kolod\YandexDisk-prooracle@yandex.ru\Projects\Otus_Concurrency\source\memc_load.py", line 147, in <module>
+    main(opts)
+  File "C:\Users\kolod\YandexDisk-prooracle@yandex.ru\Projects\Otus_Concurrency\source\memc_load.py", line 82, in main
+    appsinstalled = parse_appsinstalled(line)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kolod\YandexDisk-prooracle@yandex.ru\Projects\Otus_Concurrency\source\memc_load.py", line 49, in parse_appsinstalled
+    line_parts = line.strip().split("\t")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: a bytes-like object is required, not 'str'
