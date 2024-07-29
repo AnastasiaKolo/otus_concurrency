@@ -1,6 +1,21 @@
 services:
-  memcached:
+  memcached1:
     image: bitnami/memcached:latest
     restart: always
     ports:
-    - "11211:11211"
+    - "11211:33013"
+  memcached2:
+    image: bitnami/memcached:latest
+    restart: always
+    ports:
+    - "11211:33014"
+  memcached3:
+    image: bitnami/memcached:latest
+    restart: always
+    ports:
+    - "11212:33015"
+  memcached4:
+    image: bitnami/memcached:latest
+    restart: always
+    ports:
+    - "11212:33016"

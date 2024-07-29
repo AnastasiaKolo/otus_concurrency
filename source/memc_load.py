@@ -81,6 +81,7 @@ def main(options):
             if not line:
                 continue
             appsinstalled = parse_appsinstalled(line)
+            # print(appsinstalled)
             if not appsinstalled:
                 errors += 1
                 continue
@@ -94,6 +95,8 @@ def main(options):
                 processed += 1
             else:
                 errors += 1
+            if processed % 10000 == 0:
+                logging.info(f'{processed} lines processed')
         if not processed:
             fd.close()
             dot_rename(fn)
@@ -130,10 +133,10 @@ if __name__ == '__main__':
     op.add_option("-l", "--log", action="store", default=None)
     op.add_option("--dry", action="store_true", default=False)
     op.add_option("--pattern", action="store", default="./data/appsinstalled/*.tsv.gz")
-    op.add_option("--idfa", action="store", default="127.0.0.1:33013")
-    op.add_option("--gaid", action="store", default="127.0.0.1:33014")
-    op.add_option("--adid", action="store", default="127.0.0.1:33015")
-    op.add_option("--dvid", action="store", default="127.0.0.1:33016")
+    op.add_option("--idfa", action="store", default="127.0.0.1:11211")
+    op.add_option("--gaid", action="store", default="127.0.0.1:11211")
+    op.add_option("--adid", action="store", default="127.0.0.1:11211")
+    op.add_option("--dvid", action="store", default="127.0.0.1:11211")
     (opts, args) = op.parse_args()
     logging.basicConfig(filename=opts.log, level=logging.INFO if not opts.dry else logging.DEBUG,
                         format='[%(asctime)s] %(levelname).1s %(message)s', datefmt='%Y.%m.%d %H:%M:%S')
