@@ -51,6 +51,6 @@ python source/memc_load.py --pattern pattern --log log
 - retry and timeouts
 - запуск загрузки в параллельных потоках
 
-# Ускорение работы замеряла на файле 200 тыс строк:
+### Ускорение работы замеряла на файле 200 тыс строк:
 - memc_load.py - 15 мин
 - memc_load_parallel.py - 1 мин 52 сек
