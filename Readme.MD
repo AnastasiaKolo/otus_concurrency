@@ -45,7 +45,7 @@ python source/memc_load.py --pattern pattern --log log
 
 
 ## Реализовано в рамках задачи 
-(исходный скрипт memc_load.py, новыe скрипты memcload_parallel.py и memc_client.py):
+(исходный скрипт source/memc_load.py, новыe скрипты source/memcload_parallel.py и source/memc_client.py):
 
 - persistent connection to memcached
 - retry and timeouts
