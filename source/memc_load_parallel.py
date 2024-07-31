@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
+""" Script to load application log files into Memcached """
 import threading
 import queue
 
@@ -18,11 +16,12 @@ import appsinstalled_pb2
 # pip install python-memcached
 # import memcache
 
-# Create tasks queue
-q = queue.Queue(maxsize=10)
+from memc_client import memc_set
 
 
 NORMAL_ERR_RATE = 0.01
+CHUNK_SIZE = 10000
+
 AppsInstalled = collections.namedtuple("AppsInstalled", ["dev_type", "dev_id", "lat", "lon", "apps"])
 
 
@@ -38,19 +37,16 @@ def insert_appsinstalled(memc_addr, appsinstalled, dry_run=False):
     ua = appsinstalled_pb2.UserApps()
     ua.lat = appsinstalled.lat
     ua.lon = appsinstalled.lon
-    key = "%s:%s" % (appsinstalled.dev_type, appsinstalled.dev_id)
+    key = f"{appsinstalled.dev_type}:{appsinstalled.dev_id}"
     ua.apps.extend(appsinstalled.apps)
     packed = ua.SerializeToString()
-    # @TODO persistent connection
-    # @TODO retry and timeouts!
     try:
         if dry_run:
-            logging.debug("%s - %s -> %s" % (memc_addr, key, str(ua).replace("\n", " ")))
+            logging.debug("%s - %s -> %s", memc_addr, key, str(ua).replace("\n", " "))
         else:
-            memc = memcache.Client([memc_addr])
-            memc.set(key, packed)
+            memc_set(memc_addr, key, packed)
     except Exception as e:
-        logging.exception("Cannot write to memc %s: %s" % (memc_addr, e))
+        logging.exception("Cannot write to memc %s: %s", memc_addr, e)
         return False
     return True
 
@@ -80,30 +76,26 @@ def parse_appsinstalled(line: str):
     return AppsInstalled(dev_type, dev_id, lat, lon, apps)
 
 
-def pack_appsinstalled(appsinstalled):
-    """ Pack line to be cached """
-    ua = appsinstalled_pb2.UserApps()
-    ua.lat = appsinstalled.lat
-    ua.lon = appsinstalled.lon
-    ua.apps.extend(appsinstalled.apps)
-    return f'{(appsinstalled.dev_type, appsinstalled.dev_id)}:{ua.SerializeToString()}'
-
-
-def worker(options):
-    """ worker thread """
+def worker(options, tasks_queue):
+    """ 
+    A worker thread:
+    - takes a task from task queue 
+    - processes it line by line
+    - inserts parsed lines into memcached
+    """
     address_memc = {
         "idfa": options.idfa,
         "gaid": options.gaid,
         "adid": options.adid,
         "dvid": options.dvid,
     }
-    
-    
+
     thread_name = threading.current_thread().name
     logging.info("%s started", thread_name)
     while True:
-        item = q.get()
-        print(f'{thread_name} working on {len(item)} lines')
+        item = tasks_queue.get()
+        errors, processed = 0, 0
+        # print(f'{thread_name} working on {len(item)} lines')
         for line in item:
 
             appsinstalled = parse_appsinstalled(line)
@@ -113,26 +105,27 @@ def worker(options):
             memc_addr = address_memc.get(appsinstalled.dev_type)
             if not memc_addr:
                 errors += 1
-                logging.error("Unknow device type: %s" % appsinstalled.dev_type)
+                logging.error("Unknow device type: %s", appsinstalled.dev_type)
                 continue
             ok = insert_appsinstalled(memc_addr, appsinstalled, options.dry)
             if ok:
                 processed += 1
             else:
                 errors += 1
-        if processed:
-            err_rate = float(errors) / processed
-            if err_rate < NORMAL_ERR_RATE:
-                logging.info("Acceptable error rate (%s). Successfull load", err_rate)
-            else:
-                logging.error("High error rate (%s > %s). Failed load", err_rate, NORMAL_ERR_RATE)
+
+        # if processed:
+        #     err_rate = float(errors) / processed
+        #     if err_rate < NORMAL_ERR_RATE:
+        #         logging.info("{thread_name} Acceptable error rate (%s). Successfull load", err_rate)
+        #     else:
+        #         logging.error("{thread_name} High error rate (%s > %s). Failed load", err_rate, NORMAL_ERR_RATE)
             
         #__________________________________________________________
-        print(f'{thread_name} finished {len(item)} lines')
-        q.task_done()
+        logging.info(f'{thread_name} finished {len(item)} lines')
+        tasks_queue.task_done()
 
 
-def gzip_yield_chunks(filename, chunk_size=10000):
+def gzip_yield_chunks(filename, chunk_size=CHUNK_SIZE):
     """ Read chunk_size lines from gzip file """
     chunk = []
     with gzip.open(filename, 'rt') as fd:
@@ -148,21 +141,32 @@ def gzip_yield_chunks(filename, chunk_size=10000):
 
 def main_parallel(options):
     """ Main function starting threads """
+    # Create tasks queue
+    tasks_queue = queue.Queue(maxsize=10)
 
-    # Turn-on the worker threads
+    # Turn-on worker threads
     for t in range(options.workers):
-        threading.Thread(target=worker, name=f"Thread {t}" , daemon=True, args=(options,)).start()
+        threading.Thread(target=worker, name=f"Thread {t}" , daemon=True, args=(options, tasks_queue, )).start()
 
-    # Send thirty task requests to the worker.
-    for fn in glob.iglob(options.pattern):
+    # Send task requests to the workers
+    files = glob.iglob(options.pattern)
+    files_processed = 0
+
+    for fn in files:
         logging.info('Processing %s', fn)
-        for chunk in gzip_yield_chunks(fn, chunk_size=10000): 
-            q.put(chunk)
+        for chunk in gzip_yield_chunks(fn, chunk_size=CHUNK_SIZE):
+            tasks_queue.put(chunk)
         dot_rename(fn)
+        files_processed += 1
+    
+    if files_processed:
+        logging.info("%s files processed by pattern %s", files_processed, options.pattern)
+    else:
+        logging.info("Files not found by pattern: %s", options.pattern)
 
     # Block until all tasks are done.
-    q.join()
-    print('All work completed')
+    tasks_queue.join()
+    logging.info('All work completed')
 
 
 def split_files(options, split_len=200000, output_base='test_'):
@@ -211,7 +215,7 @@ if __name__ == '__main__':
     op.add_option("-s", "--split", action="store_true", default=False)
     op.add_option("-l", "--log", action="store", default=None)
     op.add_option("--dry", action="store_true", default=False)
-    op.add_option("--pattern", action="store", default="./data/appsinstalled/20240730_17.tsv.gz")
+    op.add_option("--pattern", action="store", default="./data/appsinstalled/20240730_1.tsv.gz")
     op.add_option("--idfa", action="store", default="127.0.0.1:11211")
     op.add_option("--gaid", action="store", default="127.0.0.1:11211")
     op.add_option("--adid", action="store", default="127.0.0.1:11211")
@@ -227,7 +231,7 @@ if __name__ == '__main__':
 
     if opts.split:
         print("Splitting...")
-        split_files(opts, split_len=10000)
+        split_files(opts, split_len=100000)
         sys.exit(0)
 
     logging.info("Memc loader started with options: %s" % opts)

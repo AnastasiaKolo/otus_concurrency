@@ -140,7 +140,7 @@ if __name__ == '__main__':
     op.add_option("-t", "--test", action="store_true", default=False)
     op.add_option("-l", "--log", action="store", default=None)
     op.add_option("--dry", action="store_true", default=False)
-    op.add_option("--pattern", action="store", default="./data/appsinstalled/*.tsv.gz")
+    op.add_option("--pattern", action="store", default="./data/appsinstalled/20240730_1.tsv.gz")
     op.add_option("--idfa", action="store", default="127.0.0.1:11211")
     op.add_option("--gaid", action="store", default="127.0.0.1:11211")
     op.add_option("--adid", action="store", default="127.0.0.1:11211")

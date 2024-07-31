@@ -32,7 +32,7 @@ $ python memc_load.py --pattern=/Users/s.stupnikov/Coding/otus/*.tsv.gz --dry
 Запустите memcached в docker-контейнере, выполнив команду: docker-compose up -d
 Запустите приложение: 
 - однопоточная версия memc_load.py
-- многопоточная версия memc_load_mp.py
+- многопоточная версия memc_load_parallel.py
 
 Укажите параметры конфигурации в командной строке. 
 
@@ -42,3 +42,15 @@ python source/memc_load.py --pattern pattern --log log
 |-------------|---------------------------------------|------------------------|
 | pattern     | Шаблон имени файлов для обработки     | ./data/appsinstalled/*.tsv.gz                   |
 | log         | Имя файла лога работы данного скрипта | None (вывод в консоль) |
+
+
+## Реализовано в рамках задачи 
+(исходный скрипт memc_load.py, новыe скрипты memcload_parallel.py и memc_client.py):
+
+- persistent connection to memcached
+- retry and timeouts
+- запуск загрузки в параллельных потоках
+
+Ускорение работы замеряла на файле 200 тыс строк:
+memc_load.py - 15 мин
+memc_load_parallel.py - 1 мин 52 сек
