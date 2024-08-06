@@ -16,7 +16,7 @@ import appsinstalled_pb2
 # pip install python-memcached
 # import memcache
 
-from memc_client import memc_set
+from memc_client import memc_set, memc_set_multi
 
 
 NORMAL_ERR_RATE = 0.01
@@ -32,23 +32,15 @@ def dot_rename(path):
     os.rename(path, os.path.join(head, "." + fn))
 
 
-def insert_appsinstalled(memc_addr, appsinstalled, dry_run=False):
-    """ Insert into memcached """
+def pack_appsinstalled(appsinstalled):
+    """ Parse line """
     ua = appsinstalled_pb2.UserApps()
     ua.lat = appsinstalled.lat
     ua.lon = appsinstalled.lon
     key = f"{appsinstalled.dev_type}:{appsinstalled.dev_id}"
     ua.apps.extend(appsinstalled.apps)
     packed = ua.SerializeToString()
-    try:
-        if dry_run:
-            logging.debug("%s - %s -> %s", memc_addr, key, str(ua).replace("\n", " "))
-        else:
-            memc_set(memc_addr, key, packed)
-    except Exception as e:
-        logging.exception("Cannot write to memc %s: %s", memc_addr, e)
-        return False
-    return True
+    return {key: packed}
 
 
 def parse_appsinstalled(line: str):
@@ -81,7 +73,7 @@ def worker(options, tasks_queue):
     A worker thread:
     - takes a task from task queue 
     - processes it line by line
-    - inserts parsed lines into memcached
+    - inserts parsed lines into output_queue
     """
     address_memc = {
         "idfa": options.idfa,
@@ -89,15 +81,21 @@ def worker(options, tasks_queue):
         "adid": options.adid,
         "dvid": options.dvid,
     }
+    
+    buffers_memc = {
+        "idfa": {},
+        "gaid": {},
+        "adid": {},
+        "dvid": {},
+    }
 
     thread_name = threading.current_thread().name
     logging.info("%s started", thread_name)
+
     while True:
         item = tasks_queue.get()
         errors, processed = 0, 0
-        # print(f'{thread_name} working on {len(item)} lines')
         for line in item:
-
             appsinstalled = parse_appsinstalled(line)
             if not appsinstalled:
                 errors += 1
@@ -107,11 +105,20 @@ def worker(options, tasks_queue):
                 errors += 1
                 logging.error("Unknow device type: %s", appsinstalled.dev_type)
                 continue
-            ok = insert_appsinstalled(memc_addr, appsinstalled, options.dry)
-            if ok:
-                processed += 1
-            else:
-                errors += 1
+            buffers_memc[appsinstalled.dev_type].update(pack_appsinstalled(appsinstalled))
+        for key, content in buffers_memc.items():
+            processed += len(content)
+            logging.info(f'{thread_name} flushing buffer {key} into {address_memc[key]}: {len(content)} items')
+            try:
+                if options.dry:
+                    logging.debug("Address %s - inserted %s values from buffer", address_memc[key], len(content))
+                else:
+                    keys_errors = memc_set_multi(address_memc[key], content)
+                    errors += len(keys_errors)
+                    buffers_memc[key].clear()
+            except Exception as e:
+                logging.exception("Cannot write to memc %s: %s", address_memc[key], e)
+                errors += len(content)
 
         # if processed:
         #     err_rate = float(errors) / processed
@@ -121,7 +128,7 @@ def worker(options, tasks_queue):
         #         logging.error("{thread_name} High error rate (%s > %s). Failed load", err_rate, NORMAL_ERR_RATE)
             
         #__________________________________________________________
-        logging.info(f'{thread_name} finished {len(item)} lines')
+        logging.info(f'{thread_name} finished {len(item)} lines, inserted {processed} lines, {errors} errors')
         tasks_queue.task_done()
 
 
@@ -143,7 +150,7 @@ def main_parallel(options):
     """ Main function starting threads """
     # Create tasks queue
     tasks_queue = queue.Queue(maxsize=10)
-
+    output_queue = queue.Queue(maxsize=10)
     # Turn-on worker threads
     for t in range(options.workers):
         threading.Thread(target=worker, name=f"Thread {t}" , daemon=True, args=(options, tasks_queue, )).start()
@@ -156,7 +163,7 @@ def main_parallel(options):
         logging.info('Processing %s', fn)
         for chunk in gzip_yield_chunks(fn, chunk_size=CHUNK_SIZE):
             tasks_queue.put(chunk)
-        dot_rename(fn)
+        # dot_rename(fn)
         files_processed += 1
     
     if files_processed:
@@ -215,7 +222,9 @@ if __name__ == '__main__':
     op.add_option("-s", "--split", action="store_true", default=False)
     op.add_option("-l", "--log", action="store", default=None)
     op.add_option("--dry", action="store_true", default=False)
+    # op.add_option("--pattern", action="store", default="./data/appsinstalled/test_2.tsv.gz")
     op.add_option("--pattern", action="store", default="./data/appsinstalled/20240730_1.tsv.gz")
+    
     op.add_option("--idfa", action="store", default="127.0.0.1:11211")
     op.add_option("--gaid", action="store", default="127.0.0.1:11211")
     op.add_option("--adid", action="store", default="127.0.0.1:11211")
