@@ -120,14 +120,6 @@ def worker(options, tasks_queue):
                 logging.exception("Cannot write to memc %s: %s", address_memc[key], e)
                 errors += len(content)
 
-        # if processed:
-        #     err_rate = float(errors) / processed
-        #     if err_rate < NORMAL_ERR_RATE:
-        #         logging.info("{thread_name} Acceptable error rate (%s). Successfull load", err_rate)
-        #     else:
-        #         logging.error("{thread_name} High error rate (%s > %s). Failed load", err_rate, NORMAL_ERR_RATE)
-            
-        #__________________________________________________________
         logging.info(f'{thread_name} finished {len(item)} lines, inserted {processed} lines, {errors} errors')
         tasks_queue.task_done()
 
@@ -150,7 +142,6 @@ def main_parallel(options):
     """ Main function starting threads """
     # Create tasks queue
     tasks_queue = queue.Queue(maxsize=10)
-    output_queue = queue.Queue(maxsize=10)
     # Turn-on worker threads
     for t in range(options.workers):
         threading.Thread(target=worker, name=f"Thread {t}" , daemon=True, args=(options, tasks_queue, )).start()
@@ -163,7 +154,7 @@ def main_parallel(options):
         logging.info('Processing %s', fn)
         for chunk in gzip_yield_chunks(fn, chunk_size=CHUNK_SIZE):
             tasks_queue.put(chunk)
-        # dot_rename(fn)
+        dot_rename(fn)
         files_processed += 1
     
     if files_processed:
