@@ -73,7 +73,7 @@ def worker(options, tasks_queue):
     A worker thread:
     - takes a task from task queue 
     - processes it line by line
-    - inserts parsed lines into output_queue
+    - inserts parsed lines into memcached
     """
     address_memc = {
         "idfa": options.idfa,
