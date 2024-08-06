@@ -48,3 +48,14 @@ def memc_get(addr, *args, **kwargs):
 def memc_set(addr, *args, **kwargs):
     """ Set value for given key into Memcached """
     return MemCacheConnections().get_client(addr).set(*args, **kwargs)
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (ConnectionRefusedError, MemcacheServerError),
+    max_tries=MAX_RETRY_ATTEMPTS,
+    max_time=MEMCACHED_TIMEOUT,
+    jitter=None)
+def memc_set_multi(addr, content):
+    """ Set values for given keys into Memcached """
+    return MemCacheConnections().get_client(addr).set_multi(content)
