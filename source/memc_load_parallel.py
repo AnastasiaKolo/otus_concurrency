@@ -16,7 +16,7 @@ import appsinstalled_pb2
 # pip install python-memcached
 # import memcache
 
-from memc_client import memc_set, memc_set_multi
+from memc_client import memc_set_multi
 
 
 NORMAL_ERR_RATE = 0.01
